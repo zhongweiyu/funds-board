@@ -184,6 +184,21 @@ export function listCatalog(query = '') {
     .all(keyword, keyword, keyword, keyword, keyword, keyword, query.trim(), `${query.trim()}%`);
 }
 
+export function listCatalogForImport() {
+  return db
+    .prepare(
+      `SELECT id,
+              name,
+              code,
+              provider_symbol AS providerSymbol,
+              category,
+              note
+       FROM index_catalog
+       ORDER BY id`
+    )
+    .all();
+}
+
 export function getCatalogById(id) {
   return db
     .prepare(
@@ -394,6 +409,89 @@ export function createFundAdjustment(fundId, payload) {
   return getFundAdjustment(result.lastInsertRowid);
 }
 
+export function commitImportData(payload) {
+  const catalogRows = normalizeImportRows(payload?.catalogRows).map(normalizeImportCatalogRow);
+  const fundRows = normalizeImportRows(payload?.fundRows).map(normalizeImportFundRow);
+
+  const validCatalogRows = catalogRows.filter(Boolean);
+  const validFundRows = fundRows.filter(Boolean);
+  const existingCatalog = new Map(listCatalogForImport().map((item) => [item.providerSymbol, item]));
+  const existingFunds = new Map(listFunds().filter((fund) => fund.fundCode).map((fund) => [fund.fundCode, fund]));
+  const result = {
+    catalog: { created: 0, updated: 0 },
+    funds: { created: 0, updated: 0 },
+  };
+
+  const upsertCatalog = db.prepare(`
+    INSERT INTO index_catalog (name, code, provider_symbol, category, note)
+    VALUES (@name, @code, @providerSymbol, @category, @note)
+    ON CONFLICT(provider_symbol) DO UPDATE SET
+      name = excluded.name,
+      code = excluded.code,
+      category = excluded.category,
+      note = excluded.note
+  `);
+
+  const insertFund = db.prepare(`
+    INSERT INTO funds (
+      name, fund_code, amount, holding_profit, holding_percent,
+      provider_symbol, linked_name, tracking_ratio, note
+    )
+    VALUES (
+      @name, @fundCode, @amount, @holdingProfit, @holdingPercent,
+      @providerSymbol, @linkedName, @trackingRatio, @note
+    )
+  `);
+
+  const updateFundByCode = db.prepare(`
+    UPDATE funds
+    SET name = @name,
+        amount = @amount,
+        holding_profit = @holdingProfit,
+        holding_percent = @holdingPercent,
+        provider_symbol = @providerSymbol,
+        linked_name = @linkedName,
+        tracking_ratio = @trackingRatio,
+        note = @note,
+        updated_at = ${nowSql}
+    WHERE fund_code = @fundCode
+  `);
+
+  const transaction = db.transaction(() => {
+    for (const row of validCatalogRows) {
+      if (existingCatalog.has(row.providerSymbol)) {
+        result.catalog.updated += 1;
+      } else {
+        result.catalog.created += 1;
+        existingCatalog.set(row.providerSymbol, row);
+      }
+      upsertCatalog.run(row);
+    }
+
+    const catalogAfterUpsert = new Map(listCatalogForImport().map((item) => [item.providerSymbol, item]));
+
+    for (const row of validFundRows) {
+      const linkedCatalog = catalogAfterUpsert.get(row.providerSymbol);
+      const fund = {
+        ...row,
+        linkedName: linkedCatalog?.name || row.linkedName,
+      };
+
+      if (fund.fundCode && existingFunds.has(fund.fundCode)) {
+        updateFundByCode.run(fund);
+        result.funds.updated += 1;
+      } else {
+        insertFund.run(fund);
+        result.funds.created += 1;
+        if (fund.fundCode) existingFunds.set(fund.fundCode, fund);
+      }
+    }
+  });
+
+  transaction();
+  return result;
+}
+
 export function createFund(payload) {
   const result = db
     .prepare(
@@ -581,6 +679,52 @@ function normalizeFundPayload(payload) {
     linkedName: linkedName.trim(),
     trackingRatio,
     note: payload.note?.trim() ?? '',
+  };
+}
+
+function normalizeImportRows(rows) {
+  return Array.isArray(rows) ? rows.filter((row) => row && row.status !== 'error') : [];
+}
+
+function normalizeImportCatalogRow(row) {
+  const name = String(row.name ?? '').trim();
+  const code = String(row.code ?? '').trim();
+  const providerSymbol = normalizeProviderSymbol(row.providerSymbol || code);
+
+  if (!name || !code || !providerSymbol) return null;
+
+  return {
+    name,
+    code,
+    providerSymbol,
+    category: String(row.category ?? '自选标的').trim() || '自选标的',
+    note: String(row.note ?? '').trim(),
+  };
+}
+
+function normalizeImportFundRow(row) {
+  const amount = Number(row.amount);
+  const holdingProfit = normalizeOptionalNumber(row.holdingProfit, '持有收益');
+  const holdingPercent = normalizeOptionalNumber(row.holdingPercent, '持有收益率');
+  const trackingRatio = Number(row.trackingRatio ?? 1);
+  const providerSymbol = normalizeProviderSymbol(row.providerSymbol);
+
+  if (!String(row.name ?? '').trim()) return null;
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  if (!providerSymbol) return null;
+  if (!String(row.linkedName ?? '').trim()) return null;
+  if (!Number.isFinite(trackingRatio) || trackingRatio <= 0) return null;
+
+  return {
+    name: String(row.name).trim(),
+    fundCode: String(row.fundCode ?? '').trim(),
+    amount,
+    holdingProfit,
+    holdingPercent,
+    providerSymbol,
+    linkedName: String(row.linkedName).trim(),
+    trackingRatio,
+    note: String(row.note ?? '').trim(),
   };
 }
 

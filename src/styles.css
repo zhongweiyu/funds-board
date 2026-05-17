@@ -512,6 +512,233 @@ select:focus {
   font-size: 18px;
 }
 
+.importPanel {
+  display: grid;
+  gap: 14px;
+}
+
+.uploadBox {
+  position: relative;
+  min-height: 118px;
+  border: 1px dashed #b9c8dc;
+  border-radius: 8px;
+  padding: 18px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  background: #f8fbff;
+  color: #536274;
+  cursor: pointer;
+}
+
+.uploadBox svg {
+  color: #2e63d7;
+}
+
+.uploadBox span {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.uploadBox strong {
+  color: #182033;
+  font-size: 18px;
+}
+
+.uploadBox small {
+  color: #7a8698;
+  font-size: 13px;
+}
+
+.uploadBox input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.importGuide,
+.importSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.importGuideCard,
+.importSummary,
+.importHealth {
+  min-width: 0;
+  min-height: 92px;
+  border: 1px solid #dfe7f1;
+  border-radius: 8px;
+  padding: 13px;
+  display: grid;
+  gap: 6px;
+  align-content: center;
+  background: #ffffff;
+}
+
+.importGuideCard strong,
+.importSummary span {
+  color: #182033;
+  font-weight: 900;
+}
+
+.importGuideCard span,
+.importGuideCard small,
+.importSummary small {
+  color: #7a8698;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.importSummary strong {
+  color: #182033;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.importHealth {
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  color: #566377;
+  font-weight: 900;
+}
+
+.importHealth.ok {
+  border-color: #add9c6;
+  background: #f0faf4;
+  color: #14734b;
+}
+
+.importHealth.warn {
+  border-color: #ead3a0;
+  background: #fff9e8;
+  color: #90670a;
+}
+
+.importState,
+.commitResult {
+  min-height: 44px;
+  border-radius: 8px;
+  padding: 11px 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #eef4ff;
+  color: #2f5ed1;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.commitResult {
+  background: #f0faf4;
+  color: #14734b;
+}
+
+.importPreviewBlock {
+  display: grid;
+  gap: 8px;
+}
+
+.importPreviewTitle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.importPreviewTitle strong {
+  color: #182033;
+}
+
+.importPreviewTitle span {
+  color: #7a8698;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.importTableWrap {
+  overflow: auto;
+  border: 1px solid #dfe7f1;
+  border-radius: 8px;
+}
+
+.importTable {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+  background: #ffffff;
+}
+
+.importTable th,
+.importTable td {
+  border-bottom: 1px solid #edf1f6;
+  padding: 10px 11px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.importTable th {
+  color: #7a8698;
+  font-size: 12px;
+  font-weight: 900;
+  background: #f8fafc;
+}
+
+.importTable td {
+  color: #253046;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.importTable tr:last-child td {
+  border-bottom: 0;
+}
+
+.importTable tr.hasError td {
+  background: #fff8f5;
+}
+
+.rowStatus {
+  min-width: 44px;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.rowStatus.create {
+  background: #eef4ff;
+  color: #2e5acf;
+}
+
+.rowStatus.update {
+  background: #fff8e8;
+  color: #95670b;
+}
+
+.rowStatus.error {
+  background: #fff0ed;
+  color: #b94131;
+}
+
+.emptyState.compact {
+  min-height: 84px;
+}
+
+.importCommitButton {
+  width: min(260px, 100%);
+  justify-self: end;
+}
+
 .qdiiSummaryGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1115,6 +1342,11 @@ select:focus {
     grid-template-columns: 1fr;
   }
 
+  .importGuide,
+  .importSummaryGrid {
+    grid-template-columns: 1fr;
+  }
+
   .appLayout,
   .editorGrid {
     grid-template-columns: 1fr;
@@ -1256,6 +1488,10 @@ select:focus {
 
   .fieldGrid {
     grid-template-columns: 1fr;
+  }
+
+  .importCommitButton {
+    width: 100%;
   }
 
   .dialogOverlay {

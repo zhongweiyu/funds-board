@@ -2,9 +2,12 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Activity,
+  AlertTriangle,
   CalendarClock,
+  CheckCircle2,
   Database,
   Edit3,
+  FileSpreadsheet,
   Globe2,
   ListChecks,
   Link2,
@@ -17,6 +20,7 @@ import {
   Trash2,
   TrendingDown,
   TrendingUp,
+  Upload,
   Wallet,
   X,
 } from 'lucide-react';
@@ -47,6 +51,21 @@ const defaultForm = {
   note: '',
 };
 
+const catalogImportColumns = [
+  { key: 'name', label: '名称' },
+  { key: 'code', label: '代码' },
+  { key: 'providerSymbol', label: '行情代码' },
+  { key: 'category', label: '分类' },
+];
+
+const fundImportColumns = [
+  { key: 'name', label: '基金名称' },
+  { key: 'fundCode', label: '基金代码' },
+  { key: 'amount', label: '持有金额' },
+  { key: 'linkedName', label: '关联标的' },
+  { key: 'providerSymbol', label: '行情代码' },
+];
+
 function createDefaultAdjustmentForm(type = 'add') {
   return {
     type,
@@ -67,7 +86,11 @@ function App() {
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [savingAdjustment, setSavingAdjustment] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
+  const [committingImport, setCommittingImport] = React.useState(false);
   const [error, setError] = React.useState('');
+  const [importPreview, setImportPreview] = React.useState(null);
+  const [importFileName, setImportFileName] = React.useState('');
   const [health, setHealth] = React.useState(null);
   const [lastRefresh, setLastRefresh] = React.useState('');
   const [holdingQuery, setHoldingQuery] = React.useState('');
@@ -405,6 +428,55 @@ function App() {
     }
   }
 
+  async function previewImport(file) {
+    if (!file) return;
+
+    setImporting(true);
+    setError('');
+    setImportPreview(null);
+    setImportFileName(file.name);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('/api/import/preview', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || '解析失败');
+      }
+      setImportPreview(await response.json());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function commitImport() {
+    if (!importPreview) return;
+
+    setCommittingImport(true);
+    setError('');
+    try {
+      const result = await request('/api/import/commit', {
+        method: 'POST',
+        body: JSON.stringify({
+          catalogRows: importPreview.catalog.rows,
+          fundRows: importPreview.funds.rows,
+        }),
+      });
+      setImportPreview({ ...importPreview, committed: result });
+      await searchCatalog(query);
+      await refreshFunds();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCommittingImport(false);
+    }
+  }
+
   return (
     <main className="shell">
       <header className="topbar">
@@ -465,6 +537,13 @@ function App() {
             <span>
               <strong>搜索添加</strong>
               <small>{form.id ? '正在编辑持仓' : '录入或关联指数'}</small>
+            </span>
+          </button>
+          <button className={activeView === 'import' ? 'active' : ''} onClick={() => setActiveView('import')}>
+            <FileSpreadsheet size={18} />
+            <span>
+              <strong>导入数据</strong>
+              <small>Excel 清单与持仓</small>
             </span>
           </button>
           <div className="sideStatus">
@@ -598,6 +677,15 @@ function App() {
                 )}
               </div>
             </section>
+          ) : activeView === 'import' ? (
+            <ImportPanel
+              fileName={importFileName}
+              importing={importing}
+              committing={committingImport}
+              preview={importPreview}
+              onFile={previewImport}
+              onCommit={commitImport}
+            />
           ) : (
             <section className="editorGrid">
               <section className="panel searchPanel">
@@ -783,6 +871,148 @@ function QdiiStat({ icon, label, value, detail, tone }) {
       <strong className={tone || ''}>{value}</strong>
       {detail ? <small className={tone || ''}>{detail}</small> : null}
     </div>
+  );
+}
+
+function ImportPanel({ fileName, importing, committing, preview, onFile, onCommit }) {
+  const validCatalogCount = preview ? preview.summary.catalog.create + preview.summary.catalog.update : 0;
+  const validFundCount = preview ? preview.summary.funds.create + preview.summary.funds.update : 0;
+  const validCount = validCatalogCount + validFundCount;
+  const hasErrors = preview ? preview.summary.catalog.error + preview.summary.funds.error > 0 : false;
+
+  return (
+    <section className="panel importPanel">
+      <div className="panelTitle toolbarTitle">
+        <div>
+          <h2>导入数据</h2>
+          <span>上传一个 Excel 工作簿，支持“标的清单”和“基金持仓”两张表</span>
+        </div>
+      </div>
+
+      <label className="uploadBox">
+        <FileSpreadsheet size={28} />
+        <span>
+          <strong>{fileName || '选择 Excel 文件'}</strong>
+          <small>支持 .xlsx / .xls；先预览，不会直接写入数据库</small>
+        </span>
+        <input
+          type="file"
+          accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          onChange={(event) => onFile(event.target.files?.[0])}
+        />
+      </label>
+
+      <div className="importGuide">
+        <ImportGuideCard
+          title="标的清单"
+          fields="名称、代码、行情代码、分类、备注"
+          detail="行情代码可选；不填时会按代码自动推导"
+        />
+        <ImportGuideCard
+          title="基金持仓"
+          fields="基金名称、基金代码、持有金额、关联代码、估算系数"
+          detail="关联标的可引用同一文件里的标的清单"
+        />
+      </div>
+
+      {importing ? <div className="importState">正在解析 Excel...</div> : null}
+
+      {preview ? (
+        <>
+          <div className="importSummaryGrid">
+            <ImportSummary title="标的清单" summary={preview.summary.catalog} />
+            <ImportSummary title="基金持仓" summary={preview.summary.funds} />
+            <div className={`importHealth ${hasErrors ? 'warn' : 'ok'}`}>
+              {hasErrors ? <AlertTriangle size={22} /> : <CheckCircle2 size={22} />}
+              <span>{hasErrors ? '存在错误行，确认时会跳过' : '预览通过，可以确认导入'}</span>
+            </div>
+          </div>
+
+          <ImportTable title="标的清单预览" rows={preview.catalog.rows} columns={catalogImportColumns} />
+          <ImportTable title="基金持仓预览" rows={preview.funds.rows} columns={fundImportColumns} />
+
+          {preview.committed ? (
+            <div className="commitResult">
+              <CheckCircle2 size={18} />
+              <span>
+                已导入：标的新增 {preview.committed.catalog.created}、更新 {preview.committed.catalog.updated}；持仓新增{' '}
+                {preview.committed.funds.created}、更新 {preview.committed.funds.updated}
+              </span>
+            </div>
+          ) : null}
+
+          <button className="primaryButton importCommitButton" onClick={onCommit} disabled={committing || validCount === 0}>
+            <Upload size={18} />
+            {committing ? '写入中' : `确认导入 ${validCount} 行`}
+          </button>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function ImportGuideCard({ title, fields, detail }) {
+  return (
+    <div className="importGuideCard">
+      <strong>{title}</strong>
+      <span>{fields}</span>
+      <small>{detail}</small>
+    </div>
+  );
+}
+
+function ImportSummary({ title, summary }) {
+  return (
+    <div className="importSummary">
+      <span>{title}</span>
+      <strong>{summary.total}</strong>
+      <small>
+        新增 {summary.create} · 更新 {summary.update} · 错误 {summary.error}
+      </small>
+    </div>
+  );
+}
+
+function ImportTable({ title, rows, columns }) {
+  const visibleRows = rows.slice(0, 12);
+
+  return (
+    <section className="importPreviewBlock">
+      <div className="importPreviewTitle">
+        <strong>{title}</strong>
+        <span>{rows.length ? `展示前 ${visibleRows.length} / ${rows.length} 行` : '未发现对应表'}</span>
+      </div>
+      {rows.length ? (
+        <div className="importTableWrap">
+          <table className="importTable">
+            <thead>
+              <tr>
+                <th>状态</th>
+                {columns.map((column) => (
+                  <th key={column.key}>{column.label}</th>
+                ))}
+                <th>错误</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleRows.map((row) => (
+                <tr key={`${row.sheetName}-${row.rowNumber}`} className={row.status === 'error' ? 'hasError' : ''}>
+                  <td>
+                    <span className={`rowStatus ${row.status}`}>{statusLabel(row.status)}</span>
+                  </td>
+                  {columns.map((column) => (
+                    <td key={column.key}>{formatImportValue(row[column.key])}</td>
+                  ))}
+                  <td>{row.errors?.join('；') || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="emptyState compact">工作簿里没有匹配的表</div>
+      )}
+    </section>
   );
 }
 
@@ -1120,6 +1350,19 @@ function signedNumber(value) {
 function signedCurrency(value) {
   const numeric = Number(value || 0);
   return `${numeric > 0 ? '+' : numeric < 0 ? '-' : ''}${currency.format(Math.abs(numeric))}`;
+}
+
+function statusLabel(status) {
+  if (status === 'create') return '新增';
+  if (status === 'update') return '更新';
+  if (status === 'error') return '错误';
+  return '跳过';
+}
+
+function formatImportValue(value) {
+  if (value === null || value === undefined || value === '') return '-';
+  if (typeof value === 'number') return number.format(value);
+  return String(value);
 }
 
 function currentSqlDate() {

@@ -1,8 +1,10 @@
 import express from 'express';
+import multer from 'multer';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   applyDueFundAdjustments,
+  commitImportData,
   createFundAdjustment,
   createFund,
   dbPath,
@@ -18,14 +20,19 @@ import {
   upsertQuoteSnapshots,
 } from './db.js';
 import { fetchFundQuotes } from './fundQuotes.js';
+import { previewImportWorkbook } from './importWorkbook.js';
 import { fetchQuoteHistories, fetchQuotes } from './quotes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 const port = Number(process.env.PORT || 3001);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
 
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, dbPath });
@@ -224,6 +231,23 @@ app.post('/api/funds/:id/adjustments', (req, res) => {
     const adjustment = createFundAdjustment(Number(req.params.id), req.body);
     if (!adjustment) return res.status(404).json({ message: '基金不存在' });
     res.status(201).json(adjustment);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+app.post('/api/import/preview', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: '请上传 Excel 文件' });
+    res.json(previewImportWorkbook(req.file.buffer));
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+app.post('/api/import/commit', (req, res) => {
+  try {
+    res.json(commitImportData(req.body));
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

@@ -1,5 +1,6 @@
 node_modules
 dist
+outputs
 .npm-cache
 data/*.sqlite
 data/*.sqlite-*
