@@ -1,0 +1,31 @@
+{
+  "name": "funds-board",
+  "version": "0.1.0",
+  "description": "场外基金实时估算看板",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,green \"npm run server\" \"npm run client\"",
+    "server": "node server/index.js",
+    "client": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "start": "NODE_ENV=production node server/index.js"
+  },
+  "keywords": [
+    "fund",
+    "sqlite",
+    "dashboard"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.4.1",
+    "better-sqlite3": "^9.6.0",
+    "concurrently": "^8.2.2",
+    "express": "^4.19.2",
+    "iconv-lite": "^0.6.3",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.4.21"
+  }
+}
