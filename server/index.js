@@ -19,7 +19,7 @@ import {
   updateFund,
   upsertQuoteSnapshots,
 } from './db.js';
-import { fetchFundQuotes } from './fundQuotes.js';
+import { fetchFundQuoteHistory, fetchFundQuotes } from './fundQuotes.js';
 import { previewImportWorkbook } from './importWorkbook.js';
 import { fetchQuoteHistories, fetchQuotes } from './quotes.js';
 
@@ -119,8 +119,13 @@ app.get('/api/funds', async (_req, res) => {
         const linkedProfit = hasNumber(linkedPercent) ? profitFromEndingAmount(fund.amount, linkedPercent) : null;
         const todayLinkedPercent = quoteToday ? quoteToday.percent * fund.trackingRatio : null;
         const todayLinkedProfit = hasNumber(todayLinkedPercent) ? profitFromEndingAmount(fund.amount, todayLinkedPercent) : null;
-        const actualProfit = fundQuote ? profitFromEndingAmount(fund.amount, fundQuote.percent) : null;
         const amountUpdated = Boolean(fundQuote?.date && fund.amountUpdatedTradeDate === fundQuote.date);
+        const actualProfit =
+          amountUpdated && hasNumber(fund.amountUpdateProfit)
+            ? Number(fund.amountUpdateProfit)
+            : fundQuote
+              ? profitFromEndingAmount(fund.amount, fundQuote.percent)
+              : null;
         const adjustments = adjustmentsByFundId.get(fund.id) ?? [];
         const pendingAdjustments = adjustments.filter((adjustment) => adjustment.status === 'pending');
         return {
@@ -152,6 +157,35 @@ app.get('/api/funds', async (_req, res) => {
   }
 });
 
+app.get('/api/funds/:id/daily-returns', async (req, res) => {
+  try {
+    const fund = listFunds().find((item) => item.id === Number(req.params.id));
+    if (!fund) return res.status(404).json({ message: '基金不存在' });
+    if (!/^\d{6}$/.test(String(fund.fundCode ?? ''))) {
+      return res.status(400).json({ message: '需要有效的 6 位基金代码' });
+    }
+
+    const limit = Number(req.query.limit || 60);
+    const history = await fetchFundQuoteHistory(fund.fundCode, limit);
+    const returns = buildDailyReturns(fund, history);
+
+    res.json({
+      fund: {
+        id: fund.id,
+        name: fund.name,
+        fundCode: fund.fundCode,
+        amount: fund.amount,
+        holdingProfit: fund.holdingProfit,
+        holdingPercent: fund.holdingPercent,
+      },
+      totalProfit: returns.reduce((sum, item) => sum + item.profit, 0),
+      returns,
+    });
+  } catch (error) {
+    res.status(502).json({ message: error.message });
+  }
+});
+
 function profitFromEndingAmount(amount, percent) {
   const endingAmount = Number(amount);
   const percentValue = Number(percent);
@@ -159,6 +193,32 @@ function profitFromEndingAmount(amount, percent) {
 
   if (!Number.isFinite(endingAmount) || !Number.isFinite(percentValue) || divisor === 0) return null;
   return (endingAmount * percentValue) / divisor;
+}
+
+function buildDailyReturns(fund, history) {
+  let endingAmount = Number(fund.amount || 0);
+  const rows = [];
+
+  for (const quote of history) {
+    const profit = profitFromEndingAmount(endingAmount, quote.percent);
+    if (!hasNumber(profit)) continue;
+
+    const roundedProfit = roundMoney(profit);
+    rows.push({
+      date: quote.date,
+      profit: roundedProfit,
+      percent: quote.percent,
+      nav: quote.current,
+      endingAmount: roundMoney(endingAmount),
+    });
+    endingAmount = Math.max(0, endingAmount - profit);
+  }
+
+  return rows;
+}
+
+function roundMoney(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
 function hasNumber(value) {

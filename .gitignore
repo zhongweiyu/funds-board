@@ -4,4 +4,5 @@ outputs
 .npm-cache
 data/*.sqlite
 data/*.sqlite-*
+data/*.sqlite.backup*
 .DS_Store

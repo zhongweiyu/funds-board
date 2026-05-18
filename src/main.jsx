@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import {
   Activity,
   AlertTriangle,
+  BarChart3,
   CalendarClock,
   CheckCircle2,
   Database,
@@ -106,6 +107,9 @@ function App() {
   );
   const [adjustmentFundId, setAdjustmentFundId] = React.useState(null);
   const [adjustmentForm, setAdjustmentForm] = React.useState(() => createDefaultAdjustmentForm());
+  const [dailyReturnFundId, setDailyReturnFundId] = React.useState(null);
+  const [dailyReturnData, setDailyReturnData] = React.useState(null);
+  const [loadingDailyReturns, setLoadingDailyReturns] = React.useState(false);
 
   const totalAmount = funds.reduce((sum, fund) => sum + Number(fund.amount || 0), 0);
   const totalActualProfit = funds.reduce((sum, fund) => sum + (hasValue(fund.actualProfit) ? Number(fund.actualProfit) : 0), 0);
@@ -141,6 +145,10 @@ function App() {
   const adjustmentFund = React.useMemo(
     () => funds.find((fund) => fund.id === adjustmentFundId) ?? null,
     [funds, adjustmentFundId]
+  );
+  const dailyReturnFund = React.useMemo(
+    () => funds.find((fund) => fund.id === dailyReturnFundId) ?? null,
+    [funds, dailyReturnFundId]
   );
 
   React.useEffect(() => {
@@ -360,6 +368,27 @@ function App() {
   function closeAdjustment() {
     setAdjustmentFundId(null);
     setAdjustmentForm(createDefaultAdjustmentForm());
+  }
+
+  async function openDailyReturns(fund) {
+    setDailyReturnFundId(fund.id);
+    setDailyReturnData(null);
+    setLoadingDailyReturns(true);
+    setError('');
+    try {
+      const data = await request(`/api/funds/${fund.id}/daily-returns?limit=80`);
+      setDailyReturnData(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoadingDailyReturns(false);
+    }
+  }
+
+  function closeDailyReturns() {
+    setDailyReturnFundId(null);
+    setDailyReturnData(null);
+    setLoadingDailyReturns(false);
   }
 
   async function saveFund(event) {
@@ -616,6 +645,7 @@ function App() {
                       key={fund.id}
                       fund={fund}
                       onAdjust={openAdjustment}
+                      onDailyReturns={openDailyReturns}
                       onEdit={editFund}
                       onDelete={removeFund}
                     />
@@ -848,6 +878,15 @@ function App() {
           onSubmit={saveAdjustment}
         />
       ) : null}
+
+      {dailyReturnFund ? (
+        <DailyReturnDialog
+          fund={dailyReturnFund}
+          data={dailyReturnData}
+          loading={loadingDailyReturns}
+          onClose={closeDailyReturns}
+        />
+      ) : null}
     </main>
   );
 }
@@ -1016,7 +1055,7 @@ function ImportTable({ title, rows, columns }) {
   );
 }
 
-function FundRow({ fund, onAdjust, onEdit, onDelete }) {
+function FundRow({ fund, onAdjust, onDailyReturns, onEdit, onDelete }) {
   const quote = fund.quote;
   const fundQuote = fund.fundQuote;
   const actualTone = Number(fund.actualProfit || 0) >= 0 ? 'up' : 'down';
@@ -1084,13 +1123,16 @@ function FundRow({ fund, onAdjust, onEdit, onDelete }) {
         )}
       </div>
       <div className="rowActions">
-        <button className="iconButton" onClick={() => onAdjust(fund)} title="加减仓">
+        <button className="iconButton" onClick={() => onDailyReturns(fund)} title="收益明细" aria-label="收益明细">
+          <BarChart3 size={17} />
+        </button>
+        <button className="iconButton" onClick={() => onAdjust(fund)} title="加减仓" aria-label="加减仓">
           <Repeat2 size={17} />
         </button>
-        <button className="iconButton" onClick={() => onEdit(fund)} title="编辑">
+        <button className="iconButton" onClick={() => onEdit(fund)} title="编辑" aria-label="编辑">
           <Edit3 size={17} />
         </button>
-        <button className="iconButton danger" onClick={() => onDelete(fund.id)} title="删除">
+        <button className="iconButton danger" onClick={() => onDelete(fund.id)} title="删除" aria-label="删除">
           <Trash2 size={17} />
         </button>
       </div>
@@ -1233,6 +1275,62 @@ function AdjustmentDialog({ fund, form, saving, onChange, onClose, onSubmit }) {
           </button>
         </form>
       </section>
+    </div>
+  );
+}
+
+function DailyReturnDialog({ fund, data, loading, onClose }) {
+  const rows = data?.returns ?? [];
+  const totalProfit = data ? rows.reduce((sum, item) => sum + Number(item.profit || 0), 0) : 0;
+  const maxAbsProfit = Math.max(1, ...rows.map((item) => Math.abs(Number(item.profit || 0))));
+
+  return (
+    <div className="dialogOverlay" role="presentation">
+      <section className="dailyReturnDialog" role="dialog" aria-modal="true" aria-label="收益明细">
+        <div className="dailyReturnHeader">
+          <button className="iconButton ghost" type="button" onClick={onClose} aria-label="关闭">
+            <X size={18} />
+          </button>
+          <div>
+            <h2>收益明细</h2>
+            <span>{fund.name}</span>
+          </div>
+        </div>
+
+        <div className="dailyReturnHero">
+          <span>累计收益(元)</span>
+          <strong className={totalProfit >= 0 ? 'up' : 'down'}>{signedNumber(totalProfit)}</strong>
+          <small>
+            {fund.fundCode || '未录代码'} · {currency.format(fund.amount)}
+          </small>
+        </div>
+
+        <div className="dailyReturnList">
+          {loading ? (
+            <div className="emptyState compact">正在加载收益明细</div>
+          ) : rows.length === 0 ? (
+            <div className="emptyState compact">暂无净值收益记录</div>
+          ) : (
+            rows.map((item) => <DailyReturnBar key={item.date} item={item} maxAbsProfit={maxAbsProfit} />)
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function DailyReturnBar({ item, maxAbsProfit }) {
+  const profit = Number(item.profit || 0);
+  const tone = profit > 0 ? 'up' : profit < 0 ? 'down' : 'flat';
+  const width = `${Math.max(36, Math.min(100, (Math.abs(profit) / maxAbsProfit) * 100))}%`;
+
+  return (
+    <div className="dailyReturnRow">
+      <div className={`dailyReturnBar ${tone}`} style={{ width }}>
+        <span>{item.date}</span>
+        <strong>{number.format(profit)}</strong>
+      </div>
+      <small>{signedNumber(item.percent)}%</small>
     </div>
   );
 }

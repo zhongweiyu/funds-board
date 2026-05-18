@@ -837,7 +837,7 @@ select:focus {
   display: grid;
   grid-template-columns:
     minmax(220px, 1.2fr) minmax(150px, 0.75fr) minmax(240px, 1.15fr) minmax(140px, 0.7fr)
-    150px;
+    198px;
   gap: 12px;
   align-items: center;
 }
@@ -1054,6 +1054,18 @@ select:focus {
   box-shadow: 0 24px 80px rgba(12, 20, 33, 0.26);
 }
 
+.dailyReturnDialog {
+  width: min(620px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  border: 1px solid #d9e1ec;
+  border-radius: 8px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  background: #ffffff;
+  box-shadow: 0 24px 80px rgba(12, 20, 33, 0.26);
+}
+
 .dialogHeader {
   min-height: 74px;
   padding: 14px 18px;
@@ -1062,6 +1074,122 @@ select:focus {
   gap: 12px;
   align-items: center;
   border-bottom: 1px solid #edf1f6;
+}
+
+.dailyReturnHeader {
+  min-height: 74px;
+  padding: 14px 18px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid #edf1f6;
+}
+
+.dailyReturnHeader div {
+  min-width: 0;
+  text-align: center;
+}
+
+.dailyReturnHeader span {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: #7a8698;
+  font-size: 13px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dailyReturnHero {
+  min-height: 156px;
+  padding: 26px 18px 30px;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  border-bottom: 10px solid #f1f3f7;
+}
+
+.dailyReturnHero span {
+  color: #7a7f89;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.dailyReturnHero strong {
+  font-size: clamp(42px, 8vw, 62px);
+  line-height: 1;
+}
+
+.dailyReturnHero small {
+  color: #7a8698;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.dailyReturnList {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  gap: 9px;
+  padding: 14px 16px 18px;
+  background: #fafbfe;
+}
+
+.dailyReturnRow {
+  min-height: 62px;
+  position: relative;
+  display: grid;
+  align-items: center;
+  background: #f0f1f6;
+  overflow: hidden;
+}
+
+.dailyReturnBar {
+  min-width: min(300px, calc(100% - 92px));
+  height: 100%;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  color: #ffffff;
+}
+
+.dailyReturnBar.up {
+  background: #e24145;
+}
+
+.dailyReturnBar.down {
+  background: #438f2b;
+}
+
+.dailyReturnBar.flat {
+  background: #a8abb5;
+}
+
+.dailyReturnBar span,
+.dailyReturnBar strong {
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.dailyReturnBar strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.dailyReturnRow > small {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #8c94a3;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .dialogHeader div {
